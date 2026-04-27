@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Literacy Tech Tree</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0B0F19;
+            --panel-bg: #1A202C;
+            --text-main: #E2E8F0;
+            --text-muted: #A0AEC0;
+            --locked-bg: #2D3748;
+            --locked-border: #4A5568;
+            --available-bg: rgba(217, 119, 6, 0.15);
+            --available-border: #D97706; /* Muted Gold */
+            --progress-bg: rgba(56, 189, 248, 0.15);
+            --progress-border: #38BDF8; /* Blue */
+            --completed-bg: rgba(34, 197, 94, 0.15);
+            --completed-border: #22C55E; /* Neon Green */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* Top Bar */
+        #top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: rgba(11, 15, 25, 0.9);
+            border-bottom: 1px solid var(--locked-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        #progress-indicator {
+            font-weight: 600;
+            color: var(--completed-border);
+        }
+
+        .legend {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 0.85rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        #undo-btn {
+            background-color: var(--locked-bg);
+            border: 1px solid var(--locked-border);
+            color: var(--text-main);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-right: 15px;
+            transition: all 0.2s;
+        }
+
+        #undo-btn:hover:not(:disabled) {
+            background-color: var(--locked-border);
+        }
+
+        #undo-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Canvas Area */
+        #canvas-wrapper {
+            position: absolute;
+            top: 60px;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            cursor: grab;
+            overflow: hidden;
+        }
+
+        #canvas-wrapper:active {
+            cursor: grabbing;
+        }
+
+        #tree-container {
+            position: absolute;
+            transform-origin: 0 0;
+        }
+
+        svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Nodes */
+        .node {
+            position: absolute;
+            width: 220px;
+            padding: 15px;
+            border-radius: 12px;
+            border: 2px solid;
+            background-color: var(--locked-bg);
+            border-color: var(--locked-border);
+            color: var(--text-muted);
+            cursor: pointer;
+            z-index: 10;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .node:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.5);
+        }
+
+        .node.root {
+            width: 260px;
+            padding: 20px;
+        }
+
+        .node-icon {
+            font-size: 1.5rem;
+        }
+
+        .node-title {
+            font-weight: 600;
+            font-size: 1rem;
+            line-height: 1.2;
+        }
+
+        .node-status {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 800;
+        }
+
+        /* Node States */
+        .node.locked {
+            pointer-events: none;
+            opacity: 0.6;
+        }
+        
+        .node.available {
+            background-color: var(--available-bg);
+            border-color: var(--available-border);
+            color: var(--text-main);
+        }
+        
+        .node.in-progress {
+            background-color: var(--progress-bg);
+            border-color: var(--progress-border);
+            color: var(--text-main);
+        }
+
+        .node.completed {
+            background-color: var(--completed-bg);
+            border-color: var(--completed-border);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
+        }
+
+        /* Modal */
+        #modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 200;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+
+        #modal {
+            background-color: var(--panel-bg);
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            border-radius: 16px;
+            border: 1px solid var(--locked-border);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: slideIn 0.3s ease-out forwards;
+            overflow-y: auto;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        #close-modal {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        #close-modal:hover { color: #fff; }
+
+        #modal-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 1.5rem;
+            font-weight: 800;
+        }
+
+        #modal-desc {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: var(--text-muted);
+        }
+
+        .checklist {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .check-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            background: var(--locked-bg);
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .check-item:hover {
+            background: var(--locked-border);
+        }
+
+        .check-item input[type="checkbox"] {
+            margin-top: 4px;
+            width: 18px;
+            height: 18px;
+            accent-color: var(--completed-border);
+            cursor: pointer;
+        }
+
+        .check-item label {
+            font-size: 0.9rem;
+            line-height: 1.4;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .check-item.checked label {
+            text-decoration: line-through;
+            color: var(--text-muted);
+        }
+
+        #complete-btn {
+            margin-top: 10px;
+            padding: 15px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 800;
+            font-size: 1rem;
+            text-transform: uppercase;
+            cursor: not-allowed;
+            background-color: var(--locked-border);
+            color: var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        #complete-btn.active {
+            cursor: pointer;
+            background-color: var(--completed-border);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
+        }
+
+        #complete-btn.active:hover {
+            background-color: #16a34a;
+        }
+
+        #complete-btn.finished {
+            background-color: var(--locked-bg);
+            color: var(--completed-border);
+            border: 1px solid var(--completed-border);
+            cursor: default;
+        }
+
+        /* Path Animations */
+        .link-line {
+            fill: none;
+            stroke-width: 3px;
+            transition: stroke 0.5s ease;
+        }
+        .link-locked { stroke: var(--locked-border); stroke-dasharray: 5, 5; }
+        .link-available { stroke: var(--available-border); }
+        .link-completed { stroke: var(--completed-border); }
+    </style>
+</head>
+<body>
+
+    <div id="top-bar">
+        <h1>AI Literacy Tech Tree</h1>
+        <div id="progress-indicator">0 / 25 Nodes Mastered</div>
+        <div class="legend">
+            <button id="undo-btn" disabled>↶ Undo</button>
+            <div class="legend-item"><div class="legend-color" style="background: var(--locked-bg); border: 1px solid var(--locked-border);"></div> Locked</div>
+            <div class="legend-item"><div class="legend-color" style="background: var(--available-bg); border: 1px solid var(--available-border);"></div> Available</div>
+            <div class="legend-item"><div class="legend-color" style="background: var(--progress-bg); border: 1px solid var(--progress-border);"></div> In Progress</div>
+            <div class="legend-item"><div class="legend-color" style="background: var(--completed-bg); border: 1px solid var(--completed-border);"></div> Completed</div>
+        </div>
+    </div>
+
+    <div id="canvas-wrapper">
+        <div id="tree-container">
+            <svg id="lines-svg"></svg>
+            <div id="nodes-layer"></div>
+        </div>
+    </div>
+
+    <div id="modal-overlay">
+        <div id="modal">
+            <button id="close-modal">&times;</button>
+            <div id="modal-header">
+                <span id="modal-icon"></span>
+                <span id="modal-title">Node Title</span>
+            </div>
+            <div id="modal-desc">Node description goes here.</div>
+            <div class="checklist" id="modal-checklist">
+                </div>
+            <button id="complete-btn">Complete Checklist to Unlock</button>
+        </div>
+    </div>
+
+<script>
+/**
+ * DATA STRUCTURE: 25 Pedagogically substantive nodes
+ */
+const treeData = [
+    // --- ROOT 1: THINKING PARTNER ---
+    {
+        id: "think_root",
+        label: "AI as a Thinking Partner",
+        description: "Using AI not to produce final answers, but to stimulate your own cognitive processes, test logic, and overcome mental blocks.",
+        parentId: null,
+        icon: "🧠",
+        checklist: [
+            "Read your university's academic integrity policy regarding generative AI.",
+            "Write a 3-sentence personal definition of what makes an AI a 'partner' rather than a 'ghostwriter'.",
+            "Identify an upcoming assignment where you could use a thinking partner.",
+            "Commit to never submitting unedited AI-generated text as your own work."
+        ]
+    },
+    {
+        id: "think_socratic",
+        label: "Socratic Dialogue",
+        description: "Prompting the AI to ask YOU questions rather than giving you answers, forcing you to articulate and defend your ideas.",
+        parentId: "think_root",
+        icon: "🏛️",
+        checklist: [
+            "Provide the AI with a thesis statement you are considering.",
+            "Prompt the AI: 'Act as a tutor. Do not write my paper. Ask me one question at a time to help me refine this thesis.'",
+            "Answer at least 3 consecutive questions posed by the AI using your own original thoughts.",
+            "Copy the most helpful question the AI asked and save it to your notes."
+        ]
+    },
+    {
+        id: "think_rubberduck",
+        label: "Rubber Duck Debugging",
+        description: "Explaining a complex problem, code snippet, or essay structure to the AI step-by-step to spot your own logical errors.",
+        parentId: "think_root",
+        icon: "🦆",
+        checklist: [
+            "Find a concept, math problem, or paragraph you are struggling with.",
+            "Prompt the AI: 'I am going to explain my logic to you step by step. Just say 'continue' until I ask for feedback.'",
+            "Type out your explanation of the problem.",
+            "Review your own typed explanation—did the act of explaining it reveal the flaw?",
+            "Ask the AI for a hint (not the solution) regarding where your logic broke down."
+        ]
+    },
+    {
+        id: "think_debate",
+        label: "Devil's Advocate Testing",
+        description: "Having the AI argue the exact opposite of your thesis to prepare for counter-arguments and strengthen your positioning.",
+        parentId: "think_socratic",
+        icon: "⚖️",
+        checklist: [
+            "Give the AI your strongest argument for a topic.",
+            "Prompt the AI: 'Act as a fierce but fair debate opponent. Provide the strongest counter-argument to my premise.'",
+            "Read the AI's counter-argument carefully.",
+            "Write a rebuttal paragraph to the AI's counter-argument completely on your own.",
+            "Reflect: How did this exercise change your original thesis?"
+        ]
+    },
+    {
+        id: "think_analogy",
+        label: "Analogy Generation",
+        description: "Using AI to generate structural analogies to help you comprehend highly abstract or dense academic concepts.",
+        parentId: "think_socratic",
+        icon: "🔗",
+        checklist: [
+            "Identify a difficult academic concept (e.g., action potentials, Keynesian economics).",
+            "Prompt the AI: 'Provide 3 distinct real-world analogies to help me understand [concept].'",
+            "Evaluate the analogies: identify one way an analogy succeeds and one way it breaks down or oversimplifies.",
+            "Using the AI's structural ideas, invent your own original analogy for the concept."
+        ]
+    },
+    {
+        id: "think_lateral",
+        label: "Cross-Disciplinary Application",
+        description: "Using AI to inject perspectives from unrelated disciplines into your problem to spark out-of-the-box thinking.",
+        parentId: "think_rubberduck",
+        icon: "🎲",
+        checklist: [
+            "Take a standard problem you are working on.",
+            "Prompt the AI: 'Give me 3 ways a [random profession, e.g., biologist, architect] would approach this problem.'",
+            "Select the most unexpected or interesting perspective generated.",
+            "Spend 5 minutes freewriting on how that unexpected perspective could actually be applied to your work."
+        ]
+    },
+
+    // --- ROOT 2: WORKFLOW TOOL ---
+    {
+        id: "work_root",
+        label: "AI as a Workflow Tool",
+        description: "Automating mundane, repetitive, or formatting-heavy tasks so you can reserve your cognitive energy for high-level critical thinking.",
+        parentId: null,
+        icon: "⚙️",
+        checklist: [
+            "Audit your weekly academic tasks and identify the most repetitive, non-creative chore.",
+            "Research if an AI tool is appropriate (and permitted) for automating that specific chore.",
+            "Understand the privacy implications: ensure you are not uploading sensitive/FERPA data to public AI tools.",
+            "Define the boundary: I will use AI for formatting/structure, but the core substance must be mine."
+        ]
+    },
+    {
+        id: "work_format",
+        label: "Formatting & Citation Prep",
+        description: "Using AI to convert raw bibliography data into specific citation styles, or standardizing messy text structures.",
+        parentId: "work_root",
+        icon: "📝",
+        checklist: [
+            "Gather a list of 3 URLs or raw book details.",
+            "Prompt the AI: 'Convert these into strict APA/MLA format.'",
+            "CRITICAL: Manually verify the AI's output against an official style guide (e.g., Purdue OWL).",
+            "Identify at least one formatting hallucination or error the AI made and correct it."
+        ]
+    },
+    {
+        id: "work_regex",
+        label: "Regex & Data Cleaning",
+        description: "Generating regular expressions or simple scripts to clean up messy datasets or text files for research.",
+        parentId: "work_root",
+        icon: "🧹",
+        checklist: [
+            "Find a messy dataset or text snippet (e.g., inconsistent dates or mixed cases).",
+            "Prompt the AI: 'Write a regex pattern or Python script to extract/clean [specific data] from this text.'",
+            "Test the generated code/regex on a small sample of your data.",
+            "Modify the script/regex slightly to fit an edge case the AI missed."
+        ]
+    },
+    {
+        id: "work_translation",
+        label: "Translation Triage",
+        description: "Using AI to do first-pass translations of foreign language research abstracts to determine if the full paper is worth reading.",
+        parentId: "work_format",
+        icon: "🌍",
+        checklist: [
+            "Find an academic article abstract in a language you don't speak.",
+            "Use AI to translate the abstract into your native language.",
+            "Evaluate: Does the abstract relate directly to your research question?",
+            "Acknowledge the limitation: AI translations may miss academic nuance, so rely on official translations for direct quotes."
+        ]
+    },
+    {
+        id: "work_structure",
+        label: "Structuring Unstructured Notes",
+        description: "Feeding the AI a brain-dump of your own typed lecture notes and having it organize them into an outline or table.",
+        parentId: "work_format",
+        icon: "🗂️",
+        checklist: [
+            "Copy a messy, unstructured paragraph of your own lecture notes.",
+            "Prompt the AI: 'Organize my notes into a hierarchical outline with bullet points.'",
+            "Compare the output to your original notes. Did it omit any critical details?",
+            "Add one new synthesis point to the outline that wasn't in your original notes."
+        ]
+    },
+    {
+        id: "work_codeexplain",
+        label: "Code Syntax Translation",
+        description: "Asking AI to explain complex code syntax or translate a concept from one programming language to another.",
+        parentId: "work_regex",
+        icon: "💻",
+        checklist: [
+            "Take a working block of code in a language you know.",
+            "Prompt the AI: 'Translate this logic into [a language you are learning].'",
+            "Read the output and add line-by-line comments explaining how the new syntax achieves the goal.",
+            "Without the AI, write a completely new function in the new language using the syntax you just learned."
+        ]
+    },
+
+    // --- ROOT 3: CREATIVE COLLABORATOR ---
+    {
+        id: "create_root",
+        label: "AI as a Creative Collaborator",
+        description: "Using AI to iterate on your own original creative seeds, providing variations, constraints, or aesthetic exploration.",
+        parentId: null,
+        icon: "🎨",
+        checklist: [
+            "Define the concept of 'AI as a Co-pilot vs. Auto-pilot' in a creative context.",
+            "Commit to establishing the core creative direction, themes, and emotional resonance yourself.",
+            "Understand that copyright cannot protect fully AI-generated outputs.",
+            "Agree to use AI for variations on YOUR ideas, not to generate ideas from a blank page."
+        ]
+    },
+    {
+        id: "create_constraints",
+        label: "Imposing Creative Constraints",
+        description: "Asking the AI to generate arbitrary rules or constraints for a project to force you out of your comfort zone.",
+        parentId: "create_root",
+        icon: "🚧",
+        checklist: [
+            "Determine a project you are working on (writing, art, design).",
+            "Prompt the AI: 'Give me 3 bizarre creative constraints for my project about [topic].'",
+            "Select one constraint (e.g., 'Do not use the letter E', 'Must incorporate a ticking clock').",
+            "Spend 15 minutes drafting part of your project adhering strictly to that constraint."
+        ]
+    },
+    {
+        id: "create_variations",
+        label: "Audience Adaptation",
+        description: "Providing the AI with your complex academic draft and asking it to translate the explanation for different specific audiences to test clarity.",
+        parentId: "create_root",
+        icon: "🗣️",
+        checklist: [
+            "Write a paragraph explaining a core concept of your project.",
+            "Prompt the AI: 'Rewrite this explanation for 3 different audiences: a 5th grader, a college freshman, and a senior expert in the field.'",
+            "Analyze the variations. What jargon was removed for the simpler versions?",
+            "Use insights from the simpler explanations to make your original draft clearer without losing academic rigor."
+        ]
+    },
+    {
+        id: "create_worldbuilding",
+        label: "System Stress-Testing",
+        description: "Providing the AI with the rules of your hypothetical system, framework, or model and asking it to find logical loopholes.",
+        parentId: "create_constraints",
+        icon: "🪐",
+        checklist: [
+            "Write out 3 fundamental rules for a system or model you designed.",
+            "Prompt the AI: 'Based on these 3 rules, what is the most likely way this system fails or creates perverse incentives?'",
+            "Read the AI's analysis of the loopholes in your system.",
+            "Write a new 4th rule that solves the loophole the AI discovered."
+        ]
+    },
+    {
+        id: "create_metaphor",
+        label: "Metaphor Expansion",
+        description: "Using AI to take a simple metaphor you created and stretch it to its absolute limits.",
+        parentId: "create_variations",
+        icon: "🦋",
+        checklist: [
+            "Create a simple metaphor (e.g., 'The economy is like a steam engine.').",
+            "Prompt the AI: 'Take my metaphor [metaphor] and expand it to include elements like maintenance, fuel types, and catastrophic failure.'",
+            "Review the expanded metaphor. Identify where it becomes too forced or absurd.",
+            "Edit the output down to a single, powerful paragraph that retains only the most resonant parts."
+        ]
+    },
+
+    // --- ROOT 4: RESEARCH ACCELERATOR ---
+    {
+        id: "research_root",
+        label: "AI as a Research Accelerator",
+        description: "Navigating massive amounts of information quickly to find human-authored sources, identify gaps, and map out literature.",
+        parentId: null,
+        icon: "🔭",
+        checklist: [
+            "Acknowledge the danger of AI Hallucinations: AI will invent fake academic citations.",
+            "Commit to never citing an AI directly as a source of factual truth in a research paper.",
+            "Understand the difference between a conversational AI and a semantic search AI (like E
